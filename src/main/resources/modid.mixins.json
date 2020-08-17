@@ -1,12 +1,12 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "net.fabricmc.example.mixin",
+  "package": "eu.kennytv.upsidedown.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
   ],
   "client": [
-    "ExampleMixin"
+    "eu.kennytv.upsidedown.mixin.ExampleMixin"
   ],
   "injectors": {
     "defaultRequire": 1
