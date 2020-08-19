@@ -6,7 +6,8 @@
   "mixins": [
   ],
   "client": [
-    "eu.kennytv.upsidedown.mixin.ExampleMixin"
+    "PlayerRendererMixin",
+    "CameraMixin"
   ],
   "injectors": {
     "defaultRequire": 1
