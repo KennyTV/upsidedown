@@ -5,11 +5,11 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.FenceGateBlock;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MovementType;
 import net.minecraft.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -32,8 +32,6 @@ public abstract class EntityMixin {
     private Vec3d pos;
     @Shadow
     public World world;
-    @Shadow
-    private EntityDimensions dimensions;
 
     @Shadow
     public abstract void setOnGround(boolean onGround);
@@ -41,29 +39,21 @@ public abstract class EntityMixin {
     @Shadow
     public abstract EntityType<?> getType();
 
-    @Inject(at = @At("RETURN"), method = "<init>", cancellable = true)
+    /*@Inject(at = @At("RETURN"), method = "<init>", cancellable = true)
     public void init(CallbackInfo ci) {
         if (isPlayer()) {
             dimensions = new EntityDimensions(dimensions.width, -dimensions.height, dimensions.fixed);
         }
-    }
-
-    @Inject(at = @At("RETURN"), method = "getDimensions", cancellable = true)
-    public void getDimensions(EntityPose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-        if (isPlayer()) {
-            final EntityDimensions dimensions = cir.getReturnValue();
-            cir.setReturnValue(new EntityDimensions(dimensions.width, -dimensions.height, dimensions.fixed));
-        }
-    }
-
-    /*@Inject(at = @At("HEAD"), method = "setBoundingBox", cancellable = true)
-    public void setBoundingBox(Box boundingBox, CallbackInfo ci) {
-        if (isPlayer()) {
-            ci.cancel();
-            final float positiveEyeHeight = -getStandingEyeHeight();
-            entityBounds = boundingBox.offset(0, 1 - (positiveEyeHeight % 1), 0);
-        }
     }*/
+
+    @Shadow
+    private EntityDimensions dimensions;
+
+    @Shadow
+    public abstract Box getBoundingBox();
+
+    @Shadow
+    public abstract void setVelocity(Vec3d velocity);
 
     @Inject(at = @At("HEAD"), method = "setVelocity(Lnet/minecraft/util/math/Vec3d;)V", cancellable = true)
     public void setVelocity(Vec3d velocity, CallbackInfo ci) {
@@ -71,12 +61,20 @@ public abstract class EntityMixin {
 
         ci.cancel();
         final double yDiff = velocity.y - this.velocity.y;
-        double y = this.velocity.y - yDiff;
-        if (y > 4) {
-            y = 4;
-        } else if (y < -4) {
-            y = -4;
+        double y;
+        if (velocity.y != 0) {
+            y = this.velocity.y - yDiff;
+            if (y > 4) {
+                new Exception().printStackTrace(); //TODO
+                y = 4;
+            } else if (y < -4) {
+                new Exception().printStackTrace(); //TODO
+                y = -4;
+            }
+        } else {
+            y = 0;
         }
+
         this.velocity = new Vec3d(velocity.x, y, velocity.z);
     }
 
@@ -92,17 +90,20 @@ public abstract class EntityMixin {
         }
     }
 
-    @Inject(at = @At("RETURN"), method = "getEyeHeight(Lnet/minecraft/entity/EntityPose;Lnet/minecraft/entity/EntityDimensions;)F", cancellable = true)
-    public void getEyeHeight(EntityPose pose, EntityDimensions dimensions, CallbackInfoReturnable<Float> cir) {
+    @Inject(at = @At("HEAD"), method = "getVelocityAffectingPos", cancellable = true)
+    public void getVelocityAffectingPos(CallbackInfoReturnable<BlockPos> cir) {
         if (isPlayer()) {
-            cir.setReturnValue(-cir.getReturnValueF());
+            cir.setReturnValue(new BlockPos(this.pos.x, getBoundingBox().maxY + 0.5f, this.pos.z));
         }
     }
 
     @ModifyVariable(at = @At("HEAD"), method = "fall")
     public boolean fall(boolean onGround) {
         // Still called with the wrong onGround in the move method
-        return isPlayer() != onGround;
+        if (isPlayer()) {
+            return !onGround;
+        }
+        return onGround;
     }
 
     @Inject(at = @At("RETURN"), method = "getLandingPos", cancellable = true)
@@ -110,7 +111,7 @@ public abstract class EntityMixin {
         if (!isPlayer()) return;
 
         int i = MathHelper.floor(this.pos.x);
-        int j = MathHelper.floor(this.pos.y + 0.2f); //TODO only need to change this
+        int j = MathHelper.floor(this.pos.y + 0.2f + dimensions.height); //TODO only need to change this //TODO just + 0.2f with correct feet pos
         int k = MathHelper.floor(this.pos.z);
         BlockPos blockPos = new BlockPos(i, j, k);
         if (this.world.getBlockState(blockPos).isAir()) {
