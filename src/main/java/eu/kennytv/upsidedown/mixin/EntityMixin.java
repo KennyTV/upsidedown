@@ -10,7 +10,6 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MovementType;
 import net.minecraft.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -34,7 +33,7 @@ public abstract class EntityMixin {
     @Shadow
     public World world;
     @Shadow
-    private Box entityBounds;
+    private EntityDimensions dimensions;
 
     @Shadow
     public abstract void setOnGround(boolean onGround);
@@ -42,8 +41,12 @@ public abstract class EntityMixin {
     @Shadow
     public abstract EntityType<?> getType();
 
-    @Shadow
-    public abstract float getStandingEyeHeight();
+    @Inject(at = @At("RETURN"), method = "<init>", cancellable = true)
+    public void init(CallbackInfo ci) {
+        if (isPlayer()) {
+            dimensions = new EntityDimensions(dimensions.width, -dimensions.height, dimensions.fixed);
+        }
+    }
 
     @Inject(at = @At("RETURN"), method = "getDimensions", cancellable = true)
     public void getDimensions(EntityPose pose, CallbackInfoReturnable<EntityDimensions> cir) {
@@ -53,12 +56,14 @@ public abstract class EntityMixin {
         }
     }
 
-    @Inject(at = @At("HEAD"), method = "setBoundingBox", cancellable = true)
+    /*@Inject(at = @At("HEAD"), method = "setBoundingBox", cancellable = true)
     public void setBoundingBox(Box boundingBox, CallbackInfo ci) {
         if (isPlayer()) {
-            entityBounds = boundingBox.offset(0, -getStandingEyeHeight(), 0);
+            ci.cancel();
+            final float positiveEyeHeight = -getStandingEyeHeight();
+            entityBounds = boundingBox.offset(0, 1 - (positiveEyeHeight % 1), 0);
         }
-    }
+    }*/
 
     @Inject(at = @At("HEAD"), method = "setVelocity(Lnet/minecraft/util/math/Vec3d;)V", cancellable = true)
     public void setVelocity(Vec3d velocity, CallbackInfo ci) {
@@ -109,7 +114,7 @@ public abstract class EntityMixin {
         int k = MathHelper.floor(this.pos.z);
         BlockPos blockPos = new BlockPos(i, j, k);
         if (this.world.getBlockState(blockPos).isAir()) {
-            BlockPos blockPos2 = blockPos.down();
+            BlockPos blockPos2 = blockPos.up(); // and this
             BlockState blockState = this.world.getBlockState(blockPos2);
             Block block = blockState.getBlock();
             if (block.isIn(BlockTags.FENCES) || block.isIn(BlockTags.WALLS) || block instanceof FenceGateBlock) {
